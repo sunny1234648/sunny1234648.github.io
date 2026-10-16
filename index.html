@@ -19,7 +19,7 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #actorPlaceholder{aspect-ratio:9/16;min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1px dashed rgba(255,255,255,.35);border-radius:20px;background:linear-gradient(180deg,rgba(214,174,108,.07),rgba(8,23,35,.1));text-align:center;text-shadow:0 2px 8px black;pointer-events:none}
 #actorPlaceholder .silhouette{font-size:58px;line-height:1}#actorPlaceholder small{font-size:11px;color:var(--muted);line-height:1.6;padding:0 12px}
 .header{position:absolute;left:0;right:0;top:0;z-index:5;padding:calc(14px + env(safe-area-inset-top)) 18px 12px;background:linear-gradient(180deg,rgba(3,13,24,.7),transparent);pointer-events:none}
-.kicker{font-size:10px;letter-spacing:.24em;color:#e6bb83;text-transform:uppercase;font-weight:700}.header h1{font-size:21px;letter-spacing:.1em;margin:6px 0 5px}.header p{font-size:11px;color:#dce9f5;margin:0;max-width:290px}
+.kicker{font-size:10px;letter-spacing:.24em;color:#e6bb83;text-transform:uppercase;font-weight:700}.header h1{font-size:21px;letter-spacing:.1em;margin:6px 0 5px}
 #hint{position:absolute;z-index:3;top:43%;width:100%;padding:0 18px;pointer-events:none;text-align:center;color:#e6eef7;text-shadow:0 2px 4px #000;font-size:14px;line-height:1.6}
 #hint.hide{display:none}
 /* ===== Toolbar: 3-column layout ===== */
@@ -46,7 +46,7 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 <body>
 <main id="stage" aria-label="Camera character tour view">
  <video id="camera" autoplay muted playsinline aria-label="Mobile camera preview"></video>
- <div class="header"><div class="kicker">Mandarin's House • AI Heritage</div><h1>Zheng Guanying · Encounter Across Time</h1><p>AI-restored historical figure display. Not real footage or location-based AR.</p></div>
+ <div class="header"><div class="kicker">Mandarin's House • AI Heritage</div><h1>Zheng Guanying · Encounter Across Time</h1></div>
  <div id="actor" aria-label="Zheng Guanying character position"><video id="actorVideo" playsinline webkit-playsinline muted loop preload="auto" aria-label="Zheng Guanying pre-recorded video"></video><canvas id="actorCanvas"></canvas><div id="actorPlaceholder"><span class="silhouette">👤</span><strong>Character position preview</strong><small>Upload zheng.mp4 to the site root</small></div></div>
  <div id="hint">Tap "Start AR" to open the camera.<br>zheng.mp4 plays automatically on mute, looping.</div>
  <div id="toast" role="status"></div>
