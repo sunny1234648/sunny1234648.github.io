@@ -35,17 +35,6 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #actorCropper .cropInner{margin-bottom:-25%}
 
 #actorCanvas{position:relative;z-index:1;display:none;vertical-align:bottom;width:100%;height:auto}
-/* Snapshot overlay: shows last frame during video switch to avoid blank frame */
-#actorSnapshot{
-  position:absolute;
-  left:0;
-  bottom:0;
-  width:100%;
-  height:auto;
-  z-index:2;
-  display:none;
-  pointer-events:none;
-}
 #actorPlaceholder{
   aspect-ratio:9/16;min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
   border:1px dashed rgba(255,255,255,.35);border-radius:20px;
@@ -145,7 +134,6 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
    <div id="actorCropper"><div class="cropInner">
      <video id="actorVideo" playsinline webkit-playsinline preload="auto" aria-label="Zheng Guanying pre-recorded video"></video>
      <canvas id="actorCanvas"></canvas>
-     <canvas id="actorSnapshot" aria-hidden="true"></canvas>
      <div id="actorPlaceholder"><span class="silhouette">👤</span><strong>Character position preview</strong><small>Upload zheng.mp4 to the site root</small></div>
    </div></div>
  </div>
@@ -174,7 +162,6 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 const $=s=>document.getElementById(s);
 const stage=$('stage'), camera=$('camera'), actor=$('actor'),actorVideo=$('actorVideo');
 const canvas=$('actorCanvas'), ctx=canvas.getContext('2d',{willReadFrequently:true});
-const snapshot=$('actorSnapshot'), snapCtx=snapshot.getContext('2d');
 const off=document.createElement('canvas'),offCtx=off.getContext('2d',{willReadFrequently:true});
 const size=$('size'), nextBtn=$('nextBtn'), prevBtn=$('prevBtn');
 let stream=null,facing='environment',ready=false,arStarted=false;
@@ -216,7 +203,7 @@ async function startCamera(){
   if(!navigator.mediaDevices?.getUserMedia){announce('Camera requires an HTTPS or localhost environment');toast('Please open this page via HTTPS, or test on localhost.');return;}
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
 
-  // Start the actor video inside the user gesture for unmuted autoplay
+  // Start inside the user gesture to allow unmuted autoplay
   if(ready && actorVideo.paused){
     playUnmuted();
   }
@@ -234,28 +221,21 @@ async function startCamera(){
     announce('Camera on');
 
     if(ready && actorVideo.paused) await playUnmuted();
-    else if(!ready) autoPlayPending=true;   // wait for loadeddata to auto-play
+    else if(!ready) autoPlayPending=true;
   }catch(err){console.error(err);announce('Camera failed to start: '+err.name);toast('Cannot open camera: please allow camera access and use HTTPS.');}
 }
 $('cameraBtn').addEventListener('click',startCamera);
 $('switchCameraBtn').addEventListener('click',()=>{facing=facing==='environment'?'user':'environment';startCamera();});
 
-/* ---- Video switching with snapshot overlay (no blank frame) ---- */
-
-function takeSnapshot(){
-  // Copy the currently visible canvas into the snapshot overlay
-  if(canvas.width>0 && canvas.height>0){
-    snapshot.width=canvas.width;
-    snapshot.height=canvas.height;
-    snapCtx.clearRect(0,0,snapshot.width,snapshot.height);
-    snapCtx.drawImage(canvas,0,0);
-    snapshot.style.display='block';
-  }
-}
+/* ---- Video switching ----
+   Key idea: do NOT touch canvas dimensions in prepareVideo/loadedmetadata.
+   While ready=false, drawActor skips rendering, so canvas keeps showing the
+   last de-keyed frame. Only when the new video's first frame is available
+   (loadeddata) do we resize + draw. This yields a seamless transition with
+   zero blank frames and no overlay position mismatch. */
 
 function prepareVideo(index){
-  takeSnapshot();          // freeze the last visible frame
-  ready=false;
+  ready=false;              // drawActor stops updating canvas → last frame frozen
   autoPlayPending=false;
   actorVideo.pause();
   currentIndex=index;
@@ -267,28 +247,29 @@ function prepareVideo(index){
   announce(`Loading video ${index}…`);
 }
 
-actorVideo.addEventListener('loadedmetadata',()=>{
-  // Only read dimensions here; do NOT mark ready yet
+/* loadeddata = first frame available (readyState >= 2).
+   Resize + draw in a single tick so the browser never paints an empty canvas. */
+actorVideo.addEventListener('loadeddata',()=>{
   if(!actorVideo.videoWidth||!actorVideo.videoHeight){toast('The video has no readable frames.');return;}
   const w=Math.min(actorVideo.videoWidth,420);
   const h=Math.max(1,Math.round(w*actorVideo.videoHeight/actorVideo.videoWidth));
-  // Resizing canvas will clear it, but the snapshot covers it visually
-  off.width=canvas.width=w;
-  off.height=canvas.height=h;
+
+  // Only resize when the new dimensions differ. Resizing clears the canvas,
+  // but we redraw immediately below in the same frame, so nothing is visible.
+  if(off.width!==w||off.height!==h){
+    off.width=canvas.width=w;
+    off.height=canvas.height=h;
+  }
   actor.style.aspectRatio=actorVideo.videoWidth+'/'+actorVideo.videoHeight;
   canvas.style.display='block';
   $('actorPlaceholder').style.display='none';
-});
 
-actorVideo.addEventListener('loadeddata',()=>{
-  // First frame is now available; draw it before hiding the snapshot
   ready=true;
   syncSoundBtn();
   nextBtn.disabled=!arStarted;
+
   if(!framesRunning){framesRunning=true;requestAnimationFrame(drawActor);}
-  drawSingleFrame();
-  // Hide snapshot on the next frame to guarantee the new frame is visible
-  requestAnimationFrame(()=>{snapshot.style.display='none';});
+  drawSingleFrame();          // paint the new first frame right away
 
   if(autoPlayPending && arStarted){
     autoPlayPending=false;
@@ -310,16 +291,15 @@ actorVideo.addEventListener('error',()=>{
  }
 });
 
-/* Ended handler:
-   - video 1: loop manually
-   - video maxIndex: hold the final frame (do nothing)
+/* ended handler:
+   - video 1      : manual loop
+   - video maxIndex: hold the final frame
    - videos 2..maxIndex-1: auto-return to video 1 */
 actorVideo.addEventListener('ended', async ()=>{
   if(currentIndex===1){
     try{ actorVideo.currentTime=0; await actorVideo.play(); }catch(e){console.warn(e);}
   } else if(currentIndex===maxIndex){
     announce(`Video ${maxIndex} finished — holding final frame`);
-    // Stay on the last frame; drawActor keeps re-drawing it each tick
   } else {
     try{ await playVideo(1); announce('Auto-returned to video 1'); }
     catch(e){ console.warn('Auto-return to 1 failed', e); }
@@ -391,6 +371,7 @@ $('soundBtn').addEventListener('click',async()=>{
   }
 });
 
+/* Enhanced chroma key */
 function drawSingleFrame(){
  if(!ready||actorVideo.readyState<2)return;
  try{
@@ -422,6 +403,8 @@ function drawSingleFrame(){
 }
 function drawActor(ts){
  if(!framesRunning)return;
+ // While ready=false (during a video switch), skip drawing → canvas keeps the
+ // previously rendered de-keyed frame. No blank frame, no overlay needed.
  if(!lastFrame||ts-lastFrame>=45){lastFrame=ts;if(ready&&actorVideo.readyState>=2)drawSingleFrame();}
  requestAnimationFrame(drawActor);
 }
