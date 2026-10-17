@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Chroma Key Test · Zheng Guanying</title>
+<style>
+:root{color-scheme:dark;--ink:#eef4ff;--muted:#b6c8dd;--accent:#d5aa6e;--surface:rgba(8,20,33,.82)}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07121d;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Noto Sans TC','Microsoft JhengHei',sans-serif}
+button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.42;cursor:not-allowed}
+
+#stage{position:fixed;inset:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+
+/* Checkerboard background: any transparent area will show the checkerboard */
+#checker{
+  position:absolute;inset:0;
+  background-color:#2a3a4a;
+  background-image:
+    linear-gradient(45deg, #1e2c3a 25%, transparent 25%),
+    linear-gradient(-45deg, #1e2c3a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1e2c3a 75%),
+    linear-gradient(-45deg, transparent 75%, #1e2c3a 75%);
+  background-size:40px 40px;
+  background-position:0 0, 0 20px, 20px -20px, -20px 0;
+}
+
+/* Center stage: video preview with chroma key */
+#preview{
+  position:relative;
+  z-index:2;
+  width:min(78vw, 420px);
+  max-height:80vh;
+  aspect-ratio:9/16;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  filter:drop-shadow(0 20px 40px rgba(0,0,0,.5));
+}
+#actorCanvas{width:100%;height:auto;display:none;vertical-align:bottom}
+#actorPlaceholder{
+  width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  border:1px dashed rgba(255,255,255,.35);border-radius:20px;
+  background:rgba(8,23,35,.4);text-align:center;padding:20px;
+}
+#actorPlaceholder .silhouette{font-size:72px;line-height:1}
+
+/* Info panel */
+#info{
+  position:absolute;
+  top:calc(14px + env(safe-area-inset-top));
+  left:12px;right:12px;
+  z-index:5;
+  display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
+  pointer-events:none;
+}
+#info .badge{
+  background:var(--surface);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:10px;
+  padding:8px 12px;
+  font-size:12px;
+  line-height:1.5;
+  pointer-events:auto;
+}
+#info .badge strong{color:var(--accent)}
+
+/* Toolbar */
+#toolbar{
+  position:absolute;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));
+  z-index:9;padding:10px;border:1px solid rgba(255,255,255,.2);border-radius:16px;
+  background:var(--surface);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  box-shadow:0 12px 36px rgba(0,0,0,.28);
+  display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;
+}
+.btn{
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:10px;
+  background:rgba(255,255,255,.1);
+  color:#f8fafc;
+  min-height:44px;
+  padding:8px 16px;
+  font-size:13px;
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.btn:active{background:rgba(213,170,110,.22);border-color:var(--accent)}
+.btn.primary{background:#b48249;border-color:#e9c18a;color:#101820}
+.btn span{font-size:16px;line-height:1}
+.btn:disabled{opacity:.35}
+
+#videoSelect{
+  background:#162b3a;
+  color:#fff;
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:10px;
+  padding:8px 12px;
+  font-size:13px;
+  min-height:44px;
+}
+
+@media(min-width:700px){
+  #toolbar{max-width:520px;margin:auto;left:0;right:0}
+}
+</style>
+</head>
+<body>
+<main id="stage" aria-label="Chroma key test view">
+ <!-- Checkerboard shows through transparent areas so you can verify the chroma key -->
+ <div id="checker"></div>
+
+ <div id="info">
+   <div class="badge"><strong>Chroma Key Test</strong><br><span id="statusText">Loading…</span></div>
+   <div class="badge">BG: <strong>checkerboard</strong><br><span id="videoInfo">—</span></div>
+ </div>
+
+ <div id="preview">
+   <video id="actorVideo" playsinline webkit-playsinline preload="auto" style="display:none"></video>
+   <canvas id="actorCanvas"></canvas>
+   <div id="actorPlaceholder">
+     <span class="silhouette">👤</span>
+     <strong>Loading video…</strong>
+     <small id="placeholderHint">Make sure zheng1.mp4 is in the same folder as this HTML.</small>
+   </div>
+ </div>
+
+ <div id="toolbar">
+   <button type="button" id="prevBtn" class="btn" disabled><span>⏮</span>Prev</button>
+   <button type="button" id="playBtn" class="btn primary" disabled><span>▶</span>Play</button>
+   <button type="button" id="nextBtn" class="btn" disabled><span>⏭</span>Next</button>
+   <select id="videoSelect" aria-label="Choose video"></select>
+ </div>
+</main>
+<script>
+(()=>{'use strict';
+const $=s=>document.getElementById(s);
+const actorVideo=$('actorVideo');
+const canvas=$('actorCanvas'), ctx=canvas.getContext('2d',{willReadFrequently:true});
+const off=document.createElement('canvas'),offCtx=off.getContext('2d',{willReadFrequently:true});
+const playBtn=$('playBtn'), nextBtn=$('nextBtn'), prevBtn=$('prevBtn'), videoSelect=$('videoSelect');
+
+let ready=false, framesRunning=false, lastFrame=0;
+let currentIndex=1;
+let maxIndex=7;
+let userPaused=false;   // user pressed pause; don't auto-resume on load
+
+const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
+
+function announce(t){ $('statusText').textContent=t; }
+function videoUrl(i){ return new URL(`./zheng${i}.mp4`,document.baseURI).href; }
+function updateVideoInfo(){
+  const vw=actorVideo.videoWidth||0, vh=actorVideo.videoHeight||0;
+  $('videoInfo').textContent = vw ? `${vw}×${vh}` : '—';
+}
+function buildVideoOptions(){
+  videoSelect.innerHTML='';
+  for(let i=1;i<=maxIndex;i++){
+    const opt=document.createElement('option');
+    opt.value=i;
+    opt.textContent=`Video ${i} (zheng${i}.mp4)`;
+    videoSelect.appendChild(opt);
+  }
+  videoSelect.value=currentIndex;
+}
+
+/* ---------- Chroma key processing ---------- */
+function drawSingleFrame(){
+  if(!ready || actorVideo.readyState<2) return;
+  try{
+    offCtx.clearRect(0,0,off.width,off.height);
+    offCtx.drawImage(actorVideo,0,0,off.width,off.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    const img=offCtx.getImageData(0,0,off.width,off.height);
+    const data=img.data;
+    const LOW=8, RANGE=67;
+
+    for(let i=0;i<data.length;i+=4){
+      const a=data[i+3];
+      if(a===0) continue;
+      const r=data[i],g=data[i+1],b=data[i+2];
+      const maxRB=r>b?r:b;
+      const greenDiff=g-maxRB;
+      if(greenDiff>LOW){
+        let t=(greenDiff-LOW)/RANGE;
+        if(t>1)t=1;
+        const smooth=t*t*(3-2*t);
+        data[i+3]=Math.round(a*(1-smooth));
+        data[i+1]=Math.round(g-(g-maxRB)*smooth);
+      }
+    }
+    ctx.putImageData(img,0,0);
+  }catch(err){ console.error(err); announce('Chroma key failed (CORS?)'); }
+}
+function drawActor(ts){
+  if(!framesRunning) return;
+  if(!lastFrame || ts-lastFrame>=45){
+    lastFrame=ts;
+    if(ready && actorVideo.readyState>=2) drawSingleFrame();
+  }
+  requestAnimationFrame(drawActor);
+}
+
+/* ---------- Load / play ---------- */
+function setMutedFalse(){ try{ actorVideo.muted=false; }catch(e){} }
+
+function loadVideo(index){
+  ready=false;
+  currentIndex=index;
+  videoSelect.value=String(index);
+  actorVideo.pause();
+  actorVideo.loop=false;
+  actorVideo.removeAttribute('loop');
+  actorVideo.src=videoUrl(index);
+  actorVideo.load();
+  playBtn.disabled=true;
+  announce(`Loading video ${index}…`);
+}
+
+actorVideo.addEventListener('loadeddata',()=>{
+  if(!actorVideo.videoWidth || !actorVideo.videoHeight){
+    announce('Video has no readable frames'); return;
+  }
+  const w=Math.min(actorVideo.videoWidth, 480);
+  const h=Math.max(1, Math.round(w*actorVideo.videoHeight/actorVideo.videoWidth));
+  if(off.width!==w || off.height!==h){
+    off.width=canvas.width=w;
+    off.height=canvas.height=h;
+  }
+  // Make preview aspect ratio match the video
+  const preview=$('preview');
+  preview.style.aspectRatio=`${actorVideo.videoWidth}/${actorVideo.videoHeight}`;
+
+  canvas.style.display='block';
+  $('actorPlaceholder').style.display='none';
+
+  ready=true;
+  updateVideoInfo();
+  playBtn.disabled=false;
+  nextBtn.disabled = currentIndex>=maxIndex;
+  prevBtn.disabled = currentIndex<=1;
+
+  if(!framesRunning){ framesRunning=true; requestAnimationFrame(drawActor); }
+  drawSingleFrame();
+
+  // Auto-play unless user explicitly paused
+  if(!userPaused){
+    setMutedFalse();
+    actorVideo.play().then(()=>{
+      playBtn.innerHTML='<span>⏸</span>Pause';
+      announce(`Playing video ${currentIndex}`);
+    }).catch(err=>{
+      console.warn('Autoplay blocked', err);
+      playBtn.innerHTML='<span>▶</span>Play';
+      announce('Tap Play to start (autoplay blocked)');
+    });
+  } else {
+    playBtn.innerHTML='<span>▶</span>Play';
+    announce(`Video ${currentIndex} ready (paused)`);
+  }
+});
+
+actorVideo.addEventListener('error',()=>{
+  announce(`Failed to load zheng${currentIndex}.mp4`);
+  $('placeholderHint').textContent=`zheng${currentIndex}.mp4 not found. Upload it next to this HTML.`;
+  $('actorPlaceholder').style.display='flex';
+  canvas.style.display='none';
+  ready=false;
+  playBtn.disabled=true;
+});
+
+actorVideo.addEventListener('ended',()=>{
+  playBtn.innerHTML='<span>↻</span>Replay';
+  announce(`Video ${currentIndex} ended`);
+});
+
+/* ---------- Buttons ---------- */
+playBtn.addEventListener('click',async ()=>{
+  if(!ready) return;
+  if(actorVideo.paused){
+    try{
+      if(actorVideo.ended) actorVideo.currentTime=0;
+      setMutedFalse();
+      await actorVideo.play();
+      userPaused=false;
+      playBtn.innerHTML='<span>⏸</span>Pause';
+      announce(`Playing video ${currentIndex}`);
+    }catch(e){
+      announce('Playback blocked');
+    }
+  } else {
+    actorVideo.pause();
+    userPaused=true;
+    playBtn.innerHTML='<span>▶</span>Play';
+    announce(`Paused video ${currentIndex}`);
+  }
+});
+
+nextBtn.addEventListener('click', ()=>{
+  if(currentIndex>=maxIndex) return;
+  userPaused=false;
+  loadVideo(currentIndex+1);
+});
+
+prevBtn.addEventListener('click', ()=>{
+  if(currentIndex<=1) return;
+  userPaused=false;
+  loadVideo(currentIndex-1);
+});
+
+videoSelect.addEventListener('change',e=>{
+  const idx=parseInt(e.target.value,10);
+  if(!idx || idx===currentIndex) return;
+  userPaused=false;
+  loadVideo(idx);
+});
+
+/* Allow keyboard shortcuts for quick testing */
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='SELECT'||e.target.tagName==='INPUT') return;
+  if(e.key==='ArrowRight') nextBtn.click();
+  if(e.key==='ArrowLeft') prevBtn.click();
+  if(e.key===' '){ e.preventDefault(); playBtn.click(); }
+});
+
+/* ---------- Init ---------- */
+buildVideoOptions();
+loadVideo(1);
+})();
+</script>
+</body>
+</html>
