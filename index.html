@@ -168,7 +168,7 @@ let stream=null,facing='environment',ready=false,arStarted=false;
 let lastFrame=0,framesRunning=false,actorWidth=40,toastTimeout;
 let currentIndex=1;
 let progress=1;
-let maxIndex=6;
+let maxIndex=7;            // ← 已改為 7
 let autoPlayPending=false;
 const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
 function announce(t){const el=$('status');if(el)el.textContent=t;}
@@ -203,7 +203,6 @@ async function startCamera(){
   if(!navigator.mediaDevices?.getUserMedia){announce('Camera requires an HTTPS or localhost environment');toast('Please open this page via HTTPS, or test on localhost.');return;}
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
 
-  // Start inside the user gesture to allow unmuted autoplay
   if(ready && actorVideo.paused){
     playUnmuted();
   }
@@ -227,15 +226,8 @@ async function startCamera(){
 $('cameraBtn').addEventListener('click',startCamera);
 $('switchCameraBtn').addEventListener('click',()=>{facing=facing==='environment'?'user':'environment';startCamera();});
 
-/* ---- Video switching ----
-   Key idea: do NOT touch canvas dimensions in prepareVideo/loadedmetadata.
-   While ready=false, drawActor skips rendering, so canvas keeps showing the
-   last de-keyed frame. Only when the new video's first frame is available
-   (loadeddata) do we resize + draw. This yields a seamless transition with
-   zero blank frames and no overlay position mismatch. */
-
 function prepareVideo(index){
-  ready=false;              // drawActor stops updating canvas → last frame frozen
+  ready=false;
   autoPlayPending=false;
   actorVideo.pause();
   currentIndex=index;
@@ -247,15 +239,11 @@ function prepareVideo(index){
   announce(`Loading video ${index}…`);
 }
 
-/* loadeddata = first frame available (readyState >= 2).
-   Resize + draw in a single tick so the browser never paints an empty canvas. */
 actorVideo.addEventListener('loadeddata',()=>{
   if(!actorVideo.videoWidth||!actorVideo.videoHeight){toast('The video has no readable frames.');return;}
   const w=Math.min(actorVideo.videoWidth,420);
   const h=Math.max(1,Math.round(w*actorVideo.videoHeight/actorVideo.videoWidth));
 
-  // Only resize when the new dimensions differ. Resizing clears the canvas,
-  // but we redraw immediately below in the same frame, so nothing is visible.
   if(off.width!==w||off.height!==h){
     off.width=canvas.width=w;
     off.height=canvas.height=h;
@@ -269,7 +257,7 @@ actorVideo.addEventListener('loadeddata',()=>{
   nextBtn.disabled=!arStarted;
 
   if(!framesRunning){framesRunning=true;requestAnimationFrame(drawActor);}
-  drawSingleFrame();          // paint the new first frame right away
+  drawSingleFrame();
 
   if(autoPlayPending && arStarted){
     autoPlayPending=false;
@@ -291,10 +279,6 @@ actorVideo.addEventListener('error',()=>{
  }
 });
 
-/* ended handler:
-   - video 1      : manual loop
-   - video maxIndex: hold the final frame
-   - videos 2..maxIndex-1: auto-return to video 1 */
 actorVideo.addEventListener('ended', async ()=>{
   if(currentIndex===1){
     try{ actorVideo.currentTime=0; await actorVideo.play(); }catch(e){console.warn(e);}
@@ -371,7 +355,6 @@ $('soundBtn').addEventListener('click',async()=>{
   }
 });
 
-/* Enhanced chroma key */
 function drawSingleFrame(){
  if(!ready||actorVideo.readyState<2)return;
  try{
@@ -403,8 +386,6 @@ function drawSingleFrame(){
 }
 function drawActor(ts){
  if(!framesRunning)return;
- // While ready=false (during a video switch), skip drawing → canvas keeps the
- // previously rendered de-keyed frame. No blank frame, no overlay needed.
  if(!lastFrame||ts-lastFrame>=45){lastFrame=ts;if(ready&&actorVideo.readyState>=2)drawSingleFrame();}
  requestAnimationFrame(drawActor);
 }
