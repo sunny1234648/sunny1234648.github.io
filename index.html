@@ -17,7 +17,7 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #actor{
   position:absolute;
   left:50%;
-  bottom:0;                    /* 對齊屏幕底端 */
+  bottom:0;
   width:40vw;
   max-width:300px;
   min-width:90px;
@@ -30,10 +30,8 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 }
 #actor.visible{
   display:block;
-  transform:translateX(-50%) scale(1.5);   /* 置中 + 放大 150% */
+  transform:translateX(-50%) scale(1.5);
 }
-
-/* 裁剪容器：隱藏下方 1/4 */
 #actorCropper{position:relative;width:100%;overflow:hidden}
 #actorCropper .cropInner{margin-bottom:-25%}
 
@@ -54,19 +52,53 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #hint{position:absolute;z-index:3;top:43%;width:100%;padding:0 18px;pointer-events:none;text-align:center;color:#e6eef7;text-shadow:0 2px 4px #000;font-size:14px;line-height:1.6}
 #hint.hide{display:none}
 
-/* ===== Toolbar: 2-column ===== */
-#toolbar{position:absolute;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:9;padding:8px;border:1px solid rgba(255,255,255,.2);border-radius:16px;background:var(--surface);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 12px 36px rgba(0,0,0,.28)}
-.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+/* ===== Toolbar (back to simple stacked layout) ===== */
+#toolbar{
+  position:absolute;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));
+  z-index:9;padding:8px;border:1px solid rgba(255,255,255,.2);border-radius:16px;
+  background:var(--surface);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  box-shadow:0 12px 36px rgba(0,0,0,.28);
+}
+.actions{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;
+}
+.subactions{
+  display:flex;gap:6px;align-items:center;margin-top:6px;min-height:24px;
+}
+/* Push Next to the far right of the subactions row */
+.subactions #nextBtn{margin-left:auto}
+
+#adjustPanel{
+  display:none;align-items:center;justify-content:space-between;gap:6px;
+  border-top:1px solid rgba(255,255,255,.15);padding-top:6px;margin-top:6px;font-size:10px;color:#e0ecf7;
+}
+#adjustPanel.show{display:flex}
+#adjustPanel label{display:inline-flex;align-items:center;gap:4px}
+#adjustPanel input[type=range]{width:110px;accent-color:var(--accent)}
+
 .btn{border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.1);color:#f8fafc;min-height:50px;padding:6px 4px;font-size:11px;font-weight:600;line-height:1.3}
 .btn span{display:block;font-size:19px;margin-bottom:1px}
 .btn.primary{background:#b48249;border-color:#e9c18a;color:#101820}
 .btn.active{background:rgba(213,170,110,.22);border-color:var(--accent)}
-.subactions{display:flex;gap:6px;align-items:center;margin-top:6px;min-height:24px}
-.tiny{background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:7px;color:#deedfc;padding:4px 6px;font-size:10px}
-#adjustPanel{display:none;align-items:center;justify-content:space-between;gap:6px;border-top:1px solid rgba(255,255,255,.15);padding-top:6px;margin-top:6px;font-size:10px;color:#e0ecf7}
-#adjustPanel.show{display:flex}
-#adjustPanel label{display:inline-flex;align-items:center;gap:4px}
-#adjustPanel input[type=range]{width:110px;accent-color:var(--accent)}
+
+/* Small buttons — Next uses exactly the same size as .tiny */
+.tiny,
+#nextBtn{
+  background:transparent;
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:7px;
+  color:#deedfc;
+  padding:4px 8px;
+  font-size:10px;
+  line-height:1.2;
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  height:auto;
+}
+#nextBtn:active{background:rgba(213,170,110,.22);border-color:var(--accent)}
+#nextBtn span{font-size:11px;line-height:1}
+
 #actorVideo{position:absolute;inset:0;opacity:.001;width:100%;height:100%;object-fit:contain;pointer-events:none;z-index:0}
 #toast{position:absolute;z-index:30;left:20px;right:20px;bottom:150px;padding:10px 14px;max-width:500px;margin:auto;text-align:center;background:rgba(5,20,34,.92);border:1px solid rgba(255,255,255,.22);border-radius:12px;font-size:12px;line-height:1.5;display:none}
 #toast.show{display:block}
@@ -77,7 +109,6 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
   #hint{font-size:16px}
 }
 
-/* Landscape: 貼左下，與工具列底部平齊，不裁切 */
 @media (orientation: landscape){
   #actor.visible{
     left:10px;
@@ -118,6 +149,7 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
     <button type="button" id="sizeBtn" class="tiny">Adjust Size</button>
     <button type="button" id="switchCameraBtn" class="tiny" title="Switch front/back camera">Switch Camera</button>
     <button type="button" id="soundBtn" class="tiny" disabled>Enable Sound</button>
+    <button type="button" id="nextBtn" disabled title="Next video"><span>⏭</span>Next</button>
    </div>
    <div id="adjustPanel">
      <label for="size">Character size: <input id="size" type="range" min="15" max="80" value="40"></label>
@@ -131,17 +163,20 @@ const $=s=>document.getElementById(s);
 const stage=$('stage'), camera=$('camera'), actor=$('actor'),actorVideo=$('actorVideo');
 const canvas=$('actorCanvas'), ctx=canvas.getContext('2d',{willReadFrequently:true});
 const off=document.createElement('canvas'),offCtx=off.getContext('2d',{willReadFrequently:true});
-const size=$('size');
+const size=$('size'), nextBtn=$('nextBtn');
 let stream=null,facing='environment',ready=false,arStarted=false;
 let lastFrame=0,framesRunning=false,actorWidth=40,toastTimeout;
+let currentIndex=1;
+let maxIndex=3;
 const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
 function announce(t){const el=$('status');if(el)el.textContent=t;}
 function toast(t){$('toast').textContent=t;$('toast').classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('toast').classList.remove('show'),3600);}
-const remoteVideoUrl=new URL('./zheng.mp4',document.baseURI);
+function videoUrl(index){return new URL(`./zheng${index}.mp4`,document.baseURI).href;}
 function applySize(){actor.style.width=actorWidth+'vw';size.value=actorWidth;}
 function saveSize(){try{localStorage.setItem('zg_ar_size',actorWidth);}catch(e){}}
 try{const s=+localStorage.getItem('zg_ar_size');if(Number.isFinite(s))actorWidth=clamp(s,15,80);}catch(e){}
 applySize();
+
 async function startCamera(){
  if(!navigator.mediaDevices?.getUserMedia){announce('Camera requires an HTTPS or localhost environment');toast('Please open this page via HTTPS, or test on localhost.');return;}
  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
@@ -152,17 +187,20 @@ async function startCamera(){
    arStarted=true;
    $('hint').classList.add('hide');
    actor.classList.add('visible');
-   announce('Camera on'+(ready?' · Playing character':' · Waiting for zheng.mp4 to load'));
+   announce('Camera on');
    $('cameraBtn').classList.add('active');
+   nextBtn.disabled=false;
    if(ready)await autoPlayActor();
  }catch(err){console.error(err);announce('Camera failed to start: '+err.name);toast('Cannot open camera: please allow camera access and use HTTPS.');}
 }
 $('cameraBtn').addEventListener('click',startCamera);
 $('switchCameraBtn').addEventListener('click',()=>{facing=facing==='environment'?'user':'environment';startCamera();});
+
 function prepareVideo(src){
  ready=false;actorVideo.pause();actorVideo.muted=true;$('soundBtn').disabled=true;$('soundBtn').textContent='Enable Sound';
  actorVideo.src=src;actorVideo.load();announce('Loading character video…');
 }
+
 actorVideo.addEventListener('loadedmetadata',()=>{
  if(!actorVideo.videoWidth||!actorVideo.videoHeight){toast('The video has no readable frames.');return;}
  const w=Math.min(actorVideo.videoWidth,420);
@@ -170,26 +208,78 @@ actorVideo.addEventListener('loadedmetadata',()=>{
  off.width=canvas.width=w;off.height=canvas.height=h;
  actor.style.aspectRatio=actorVideo.videoWidth+'/'+actorVideo.videoHeight;
  canvas.style.display='block';$('actorPlaceholder').style.display='none';
- ready=true;$('soundBtn').disabled=false;
- if(arStarted){autoPlayActor();announce('Video loaded · playing character');}
- else{announce('Video loaded. Tap "Start AR" to begin.');}
+ ready=true;$('soundBtn').disabled=false;nextBtn.disabled=!arStarted;
+ if(arStarted){autoPlayActor();announce(`Video ${currentIndex} loaded · playing`);}
+ else{announce(`Video ${currentIndex} loaded. Tap "Start AR" to begin.`);}
  if(!framesRunning){framesRunning=true;requestAnimationFrame(drawActor);}
  drawSingleFrame();
 });
+
 actorVideo.addEventListener('error',()=>{
- toast('Missing zheng.mp4? Upload it next to index.html with the exact same filename.');
+ if(currentIndex>1){
+   toast(`zheng${currentIndex}.mp4 not found. Back to video 1.`);
+   maxIndex=Math.max(1,currentIndex-1);
+   currentIndex=1;
+   prepareVideo(videoUrl(1));
+ }else{
+   toast('Missing zheng1.mp4? Upload it next to index.html with the exact same filename.');
+ }
 });
+
+actorVideo.addEventListener('ended',async ()=>{
+ if(currentIndex===1)return;
+ try{await playVideo(1);}catch(e){}
+});
+
 async function autoPlayActor(){
  if(!ready||!arStarted)return;
  actorVideo.muted=true;
- try{await actorVideo.play();announce('AR started · Zheng Guanying video looping (muted)');}
+ try{await actorVideo.play();announce('AR started · video looping (muted)');}
  catch(err){console.warn('Character autoplay failed',err);announce('Camera on; tap "Start AR" again to play');}
 }
+
+function playVideo(index){
+ return new Promise((resolve,reject)=>{
+   currentIndex=index;
+   prepareVideo(videoUrl(index));
+   const onReady=async()=>{
+     actorVideo.removeEventListener('loadedmetadata',onReady);
+     actorVideo.removeEventListener('error',onErr);
+     try{actorVideo.muted=true;await actorVideo.play();resolve();}
+     catch(e){reject(e);}
+   };
+   const onErr=()=>{
+     actorVideo.removeEventListener('loadedmetadata',onReady);
+     actorVideo.removeEventListener('error',onErr);
+     reject(new Error('load error'));
+   };
+   actorVideo.addEventListener('loadedmetadata',onReady);
+   actorVideo.addEventListener('error',onErr);
+ });
+}
+
+nextBtn.addEventListener('click',async ()=>{
+ if(!arStarted)return;
+ let target=currentIndex+1;
+ if(target>maxIndex)target=1;
+ try{
+   await playVideo(target);
+   announce(`Playing video ${target}`);
+ }catch(err){
+   if(target>1){
+     maxIndex=Math.max(1,target-1);
+     const fallback=Math.max(1,Math.min(maxIndex,currentIndex));
+     try{await playVideo(fallback);announce(`Playing video ${fallback}`);}catch(e){}
+   }
+ }
+});
+
 $('soundBtn').addEventListener('click',async()=>{
  if(!ready)return;
  if(actorVideo.muted){actorVideo.muted=false;try{await actorVideo.play();$('soundBtn').textContent='Mute Sound';announce('Playing · sound enabled');}catch(err){actorVideo.muted=true;toast('Browser blocked audio playback.');}}
  else{actorVideo.muted=true;$('soundBtn').textContent='Enable Sound';announce('Playing · muted');}
 });
+
 function drawSingleFrame(){if(!ready||actorVideo.readyState<2)return;
  try{
   offCtx.clearRect(0,0,off.width,off.height);offCtx.drawImage(actorVideo,0,0,off.width,off.height);
@@ -209,12 +299,14 @@ function drawActor(ts){
  if(!lastFrame||ts-lastFrame>=45){lastFrame=ts;if(ready&&actorVideo.readyState>=2)drawSingleFrame();}
  requestAnimationFrame(drawActor);
 }
+
 $('sizeBtn').addEventListener('click',()=>{
  $('adjustPanel').classList.toggle('show');
  $('sizeBtn').classList.toggle('active');
 });
 $('resetBtn').addEventListener('click',()=>{actorWidth=40;applySize();saveSize();announce('Character size reset');});
 size.addEventListener('input',e=>{actorWidth=+e.target.value;applySize();saveSize();});
+
 $('photoBtn').addEventListener('click',async()=>{
  if(camera.readyState<2){toast('Open the camera first to capture a photo.');return;}
  try{
@@ -241,7 +333,7 @@ $('photoBtn').addEventListener('click',async()=>{
  }catch(err){console.error(err);toast('Photo composition failed. Check that the camera is working.');}
 });
 window.addEventListener('pagehide',()=>{if(stream)stream.getTracks().forEach(t=>t.stop());});
-prepareVideo(remoteVideoUrl.href);
+prepareVideo(videoUrl(1));
 })();
 </script>
 </body>
