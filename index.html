@@ -12,9 +12,8 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #stage{position:fixed;inset:0;overflow:hidden;touch-action:pan-y;background:radial-gradient(ellipse at 50% 32%,#31465b 0%,#142738 40%,#07121d 100%)}
 #camera{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:transparent;transform:none}
 #stage:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(4,14,24,.52),transparent 26%,transparent 58%,rgba(4,14,24,.35) 87%,rgba(4,14,24,.62))}
-#actor{position:absolute;bottom:16%;left:50%;width:55vw;max-width:430px;min-width:95px;transform:translateX(-50%);z-index:2;touch-action:none;user-select:none;filter:drop-shadow(0 12px 12px rgba(0,0,0,.24));cursor:default}
-#actor.adjustable{outline:1.5px dashed var(--accent);outline-offset:5px;border-radius:8px;cursor:grab}
-#actor.adjustable:active{cursor:grabbing}
+/* ===== Actor: fixed bottom-left, auto-scaled in landscape ===== */
+#actor{position:absolute;left:10px;bottom:calc(150px + env(safe-area-inset-bottom));width:40vw;max-width:300px;min-width:90px;z-index:2;user-select:none;filter:drop-shadow(0 12px 12px rgba(0,0,0,.24));transform-origin:left bottom;transition:transform .25s ease,width .15s ease}
 #actorCanvas{position:relative;z-index:1;display:none;vertical-align:bottom;width:100%;height:auto}
 #actorPlaceholder{aspect-ratio:9/16;min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1px dashed rgba(255,255,255,.35);border-radius:20px;background:linear-gradient(180deg,rgba(214,174,108,.07),rgba(8,23,35,.1));text-align:center;text-shadow:0 2px 8px black;pointer-events:none}
 #actorPlaceholder .silhouette{font-size:58px;line-height:1}#actorPlaceholder small{font-size:11px;color:var(--muted);line-height:1.6;padding:0 12px}
@@ -22,25 +21,30 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 .kicker{font-size:10px;letter-spacing:.24em;color:#e6bb83;text-transform:uppercase;font-weight:700}.header h1{font-size:21px;letter-spacing:.1em;margin:6px 0 5px}
 #hint{position:absolute;z-index:3;top:43%;width:100%;padding:0 18px;pointer-events:none;text-align:center;color:#e6eef7;text-shadow:0 2px 4px #000;font-size:14px;line-height:1.6}
 #hint.hide{display:none}
-/* ===== Toolbar: 3-column layout ===== */
+/* ===== Toolbar: 2-column layout ===== */
 #toolbar{position:absolute;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:9;padding:8px;border:1px solid rgba(255,255,255,.2);border-radius:16px;background:var(--surface);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 12px 36px rgba(0,0,0,.28)}
-.actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-.btn{border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.1);color:#f8fafc;min-height:46px;padding:5px 4px;font-size:10px;font-weight:600;line-height:1.3}
-.btn span{display:block;font-size:17px;margin-bottom:1px}
+.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.btn{border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.1);color:#f8fafc;min-height:50px;padding:6px 4px;font-size:11px;font-weight:600;line-height:1.3}
+.btn span{display:block;font-size:19px;margin-bottom:1px}
 .btn.primary{background:#b48249;border-color:#e9c18a;color:#101820}
 .btn.active{background:rgba(213,170,110,.22);border-color:var(--accent)}
 .subactions{display:flex;gap:6px;align-items:center;margin-top:6px;min-height:24px}
 .tiny{background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:7px;color:#deedfc;padding:4px 6px;font-size:10px}
-.subactions label{font-size:10px;color:#dce4ee;display:inline-flex;align-items:center;gap:3px}
-.subactions select{background:#162b3a;color:white;border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:3px 4px;font-size:10px;min-width:60px}
-.subactions input[type=range]{width:60px;accent-color:var(--accent)}
 #adjustPanel{display:none;align-items:center;justify-content:space-between;gap:6px;border-top:1px solid rgba(255,255,255,.15);padding-top:6px;margin-top:6px;font-size:10px;color:#e0ecf7}
 #adjustPanel.show{display:flex}
+#adjustPanel label{display:inline-flex;align-items:center;gap:4px}
+#adjustPanel input[type=range]{width:110px;accent-color:var(--accent)}
 #actorVideo{position:absolute;inset:0;opacity:.001;width:100%;height:100%;object-fit:fill;pointer-events:none;z-index:0}
 #toast{position:absolute;z-index:30;left:20px;right:20px;bottom:150px;padding:10px 14px;max-width:500px;margin:auto;text-align:center;background:rgba(5,20,34,.92);border:1px solid rgba(255,255,255,.22);border-radius:12px;font-size:12px;line-height:1.5;display:none}
 #toast.show{display:block}
-#videoTest{font-size:10px;text-align:center;display:block;margin-top:6px;color:#e6c28f;text-decoration:underline;text-underline-offset:2px}
-@media(min-width:700px){#toolbar{max-width:460px;margin:auto;left:0;right:0}#actor{width:280px}.header{padding-left:30px}#hint{font-size:16px}}
+@media(min-width:700px){#toolbar{max-width:460px;margin:auto;left:0;right:0}.header{padding-left:30px}#hint{font-size:16px}}
+/* Landscape: auto scale down so the character fits */
+@media (orientation: landscape){
+  #actor{transform:scale(.6)}
+}
+@media (orientation: landscape) and (max-height:420px){
+  #actor{transform:scale(.45)}
+}
 </style>
 </head>
 <body>
@@ -53,20 +57,17 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
  <div id="toolbar">
    <div class="actions">
     <button type="button" id="cameraBtn" class="btn primary"><span>📷</span>Start AR</button>
-    <button type="button" id="playBtn" class="btn" disabled><span>▶</span>Play Character</button>
     <button type="button" id="photoBtn" class="btn"><span>📸</span>Take Photo</button>
    </div>
    <div class="subactions">
-    <button type="button" id="adjustBtn" class="tiny">Adjust Position</button>
-    <label for="mode">Video:</label><select id="mode" aria-label="Video background processing"><option value="chroma">Chroma Key</option><option value="alpha">Pre-transparent</option></select>
+    <button type="button" id="sizeBtn" class="tiny">Adjust Size</button>
     <button type="button" id="switchCameraBtn" class="tiny" title="Switch front/back camera">Switch Camera</button>
     <button type="button" id="soundBtn" class="tiny" disabled>Enable Sound</button>
    </div>
    <div id="adjustPanel">
-     <label for="size">Character size: <input id="size" type="range" min="20" max="95" value="55"></label>
-     <span>Drag to move</span><button type="button" id="resetBtn" class="tiny">Center</button><button type="button" id="lockBtn" class="tiny">Lock</button>
+     <label for="size">Character size: <input id="size" type="range" min="15" max="80" value="40"></label>
+     <button type="button" id="resetBtn" class="tiny">Reset</button>
    </div>
-   <a id="videoTest" target="_blank" rel="noopener noreferrer">Check video URL: zheng.mp4</a>
  </div>
 </main>
 <script>
@@ -75,22 +76,17 @@ const $=s=>document.getElementById(s);
 const stage=$('stage'), camera=$('camera'), actor=$('actor'),actorVideo=$('actorVideo');
 const canvas=$('actorCanvas'), ctx=canvas.getContext('2d',{willReadFrequently:true});
 const off=document.createElement('canvas'),offCtx=off.getContext('2d',{willReadFrequently:true});
-const playBtn=$('playBtn'), size=$('size');
-let stream=null,facing='environment',ready=false,adjust=false,dragging=false,arStarted=false;
-let lastFrame=0,framesRunning=false,actorPercentX=50,actorPercentBottom=16,actorWidth=55,toastTimeout;
+const size=$('size');
+let stream=null,facing='environment',ready=false,arStarted=false;
+let lastFrame=0,framesRunning=false,actorWidth=40,toastTimeout;
 const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
 function announce(t){const el=$('status');if(el)el.textContent=t;}
 function toast(t){$('toast').textContent=t;$('toast').classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('toast').classList.remove('show'),3600);}
-const remoteVideoUrl=new URL('./zheng.mp4',document.baseURI);$('videoTest').href=remoteVideoUrl.href;
-function position(){actor.style.left=actorPercentX+'%';actor.style.bottom=actorPercentBottom+'%';actor.style.width=actorWidth+'vw';actor.style.maxWidth='430px';size.value=actorWidth;}
-function savePosition(){try{localStorage.setItem('zg_ar_position',JSON.stringify({x:actorPercentX,b:actorPercentBottom,w:actorWidth}));}catch(e){}}
-try{const p=JSON.parse(localStorage.getItem('zg_ar_position')||'null');if(p&&Number.isFinite(p.x)&&Number.isFinite(p.b)&&Number.isFinite(p.w)){actorPercentX=clamp(p.x,6,94);actorPercentBottom=clamp(p.b,5,75);actorWidth=clamp(p.w,20,95);}}catch(e){}
-// QR Code can specify a fixed position, e.g. ?x=45&bottom=20&w=55
-const params=new URLSearchParams(location.search);
-if(params.has('x')&&Number.isFinite(+params.get('x')))actorPercentX=clamp(+params.get('x'),0,100);
-if(params.has('bottom')&&Number.isFinite(+params.get('bottom')))actorPercentBottom=clamp(+params.get('bottom'),0,90);
-if(params.has('w')&&Number.isFinite(+params.get('w')))actorWidth=clamp(+params.get('w'),20,95);
-position();
+const remoteVideoUrl=new URL('./zheng.mp4',document.baseURI);
+function applySize(){actor.style.width=actorWidth+'vw';size.value=actorWidth;}
+function saveSize(){try{localStorage.setItem('zg_ar_size',actorWidth);}catch(e){}}
+try{const s=+localStorage.getItem('zg_ar_size');if(Number.isFinite(s))actorWidth=clamp(s,15,80);}catch(e){}
+applySize();
 async function startCamera(){
  if(!navigator.mediaDevices?.getUserMedia){announce('Camera requires an HTTPS or localhost environment');toast('Please open this page via HTTPS, or test on localhost.');return;}
  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
@@ -106,7 +102,7 @@ async function startCamera(){
 $('cameraBtn').addEventListener('click',startCamera);
 $('switchCameraBtn').addEventListener('click',()=>{facing=facing==='environment'?'user':'environment';startCamera();});
 function prepareVideo(src){
- ready=false;playBtn.disabled=true;actorVideo.pause();actorVideo.muted=true;$('soundBtn').disabled=true;$('soundBtn').textContent='Enable Sound';
+ ready=false;actorVideo.pause();actorVideo.muted=true;$('soundBtn').disabled=true;$('soundBtn').textContent='Enable Sound';
  actorVideo.src=src;actorVideo.load();announce('Loading character video…');
 }
 actorVideo.addEventListener('loadedmetadata',()=>{
@@ -116,31 +112,31 @@ actorVideo.addEventListener('loadedmetadata',()=>{
  off.width=canvas.width=w;off.height=canvas.height=h;
  actor.style.aspectRatio=actorVideo.videoWidth+'/'+actorVideo.videoHeight;
  canvas.style.display='block';$('actorPlaceholder').style.display='none';
- ready=true;playBtn.disabled=false;$('soundBtn').disabled=false;announce('Video loaded'+(arStarted?', starting character…':', it will auto-play after "Start AR"'));
- if(arStarted)autoPlayActor();
+ ready=true;$('soundBtn').disabled=false;
+ if(arStarted){autoPlayActor();announce('Video loaded · playing character');}
+ else{announce('Video loaded. Tap "Start AR" to begin.');}
  if(!framesRunning){framesRunning=true;requestAnimationFrame(drawActor);}
  drawSingleFrame();
 });
 actorVideo.addEventListener('error',()=>{
  toast('Missing zheng.mp4? Upload it next to index.html with the exact same filename.');
 });
-actorVideo.addEventListener('ended',()=>{playBtn.innerHTML='<span>↻</span>Replay Character';announce('Video ended. Tap "Replay Character".');});
 async function autoPlayActor(){
  if(!ready||!arStarted)return;
- actorVideo.muted=true; // iOS / Android: mute to allow autoplay after camera is enabled
- try{await actorVideo.play();playBtn.innerHTML='<span>⏸</span>Pause Character';announce('AR started · Zheng Guanying video looping (muted)');}
- catch(err){console.warn('Character autoplay failed',err);announce('Camera on; tap "Play Character"');}
+ actorVideo.muted=true;
+ try{await actorVideo.play();announce('AR started · Zheng Guanying video looping (muted)');}
+ catch(err){console.warn('Character autoplay failed',err);announce('Camera on; tap "Start AR" again to play');}
 }
 $('soundBtn').addEventListener('click',async()=>{
  if(!ready)return;
- if(actorVideo.muted){actorVideo.muted=false;try{await actorVideo.play();$('soundBtn').textContent='Mute Sound';announce('Playing · sound enabled');}catch(err){actorVideo.muted=true;toast('Browser blocked audio playback. Tap "Play Character" again.');}}
+ if(actorVideo.muted){actorVideo.muted=false;try{await actorVideo.play();$('soundBtn').textContent='Mute Sound';announce('Playing · sound enabled');}catch(err){actorVideo.muted=true;toast('Browser blocked audio playback.');}}
  else{actorVideo.muted=true;$('soundBtn').textContent='Enable Sound';announce('Playing · muted');}
 });
 function drawSingleFrame(){if(!ready||actorVideo.readyState<2)return;
  try{
   offCtx.clearRect(0,0,off.width,off.height);offCtx.drawImage(actorVideo,0,0,off.width,off.height);
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  if($('mode').value==='alpha'){ctx.drawImage(off,0,0);return;}
+  // Fixed to chroma key processing
   const img=offCtx.getImageData(0,0,off.width,off.height),data=img.data;
   for(let i=0;i<data.length;i+=4){
    const r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,b),diff=g-max;
@@ -156,23 +152,12 @@ function drawActor(ts){
  if(!lastFrame||ts-lastFrame>=45){lastFrame=ts;if(ready&&actorVideo.readyState>=2)drawSingleFrame();}
  requestAnimationFrame(drawActor);
 }
-$('mode').addEventListener('change',()=>{drawSingleFrame();announce($('mode').value==='chroma'?'Using chroma key mode':'Using original alpha channel (player must support it)');});
-playBtn.addEventListener('click',async()=>{
- if(!ready)return;
- if(actorVideo.paused){
-  try{if(actorVideo.ended)actorVideo.currentTime=0;await actorVideo.play();playBtn.innerHTML='<span>⏸</span>Pause Character';announce('Character playing');}
-  catch(err){announce('Playback blocked by browser: tap play again');toast('Tap "Play Character" to allow video and audio playback.');}
- }else{actorVideo.pause();playBtn.innerHTML='<span>▶</span>Resume Character';announce('Character paused');}
+$('sizeBtn').addEventListener('click',()=>{
+ $('adjustPanel').classList.toggle('show');
+ $('sizeBtn').classList.toggle('active');
 });
-$('adjustBtn').addEventListener('click',()=>{adjust=!adjust;actor.classList.toggle('adjustable',adjust);$('adjustPanel').classList.toggle('show',adjust);$('adjustBtn').classList.toggle('active',adjust);$('adjustBtn').textContent=adjust?'Adjusting':'Adjust Position';announce(adjust?'Drag the character to move; use the slider to resize':'Character position locked');if(!adjust)savePosition();});
-$('lockBtn').addEventListener('click',()=>$('adjustBtn').click());
-$('resetBtn').addEventListener('click',()=>{actorPercentX=50;actorPercentBottom=16;actorWidth=55;position();savePosition();announce('Character reset to default position');});
-size.addEventListener('input',e=>{actorWidth=+e.target.value;position();savePosition();});
-let dragStart=null;
-actor.addEventListener('pointerdown',e=>{if(!adjust)return;dragging=true;dragStart={x:e.clientX,y:e.clientY,pX:actorPercentX,pB:actorPercentBottom};actor.setPointerCapture(e.pointerId);e.preventDefault();});
-actor.addEventListener('pointermove',e=>{if(!dragging||!dragStart)return;const r=stage.getBoundingClientRect();actorPercentX=clamp(dragStart.pX+((e.clientX-dragStart.x)/r.width*100),0,100);actorPercentBottom=clamp(dragStart.pB-((e.clientY-dragStart.y)/r.height*100),0,90);position();e.preventDefault();});
-function stopDrag(){if(dragging){dragging=false;dragStart=null;savePosition();}}
-actor.addEventListener('pointerup',stopDrag);actor.addEventListener('pointercancel',stopDrag);
+$('resetBtn').addEventListener('click',()=>{actorWidth=40;applySize();saveSize();announce('Character size reset');});
+size.addEventListener('input',e=>{actorWidth=+e.target.value;applySize();saveSize();});
 $('photoBtn').addEventListener('click',async()=>{
  if(camera.readyState<2){toast('Open the camera first to capture a photo.');return;}
  try{
@@ -199,7 +184,6 @@ $('photoBtn').addEventListener('click',async()=>{
  }catch(err){console.error(err);toast('Photo composition failed. Check that the camera is working.');}
 });
 window.addEventListener('pagehide',()=>{if(stream)stream.getTracks().forEach(t=>t.stop());});
-// Auto-load the video from the site root. On GitHub Pages, place the video in the same published directory as index.html.
 prepareVideo(remoteVideoUrl.href);
 })();
 </script>
