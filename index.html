@@ -13,7 +13,6 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #camera{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:transparent;transform:none}
 #stage:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(4,14,24,.52),transparent 26%,transparent 58%,rgba(4,14,24,.35) 87%,rgba(4,14,24,.62))}
 
-/* ===== Actor ===== */
 #actor{
   position:absolute;
   left:50%;
@@ -52,7 +51,6 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #hint{position:absolute;z-index:3;top:43%;width:100%;padding:0 18px;pointer-events:none;text-align:center;color:#e6eef7;text-shadow:0 2px 4px #000;font-size:14px;line-height:1.6}
 #hint.hide{display:none}
 
-/* ===== Toolbar ===== */
 #toolbar{
   position:absolute;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));
   z-index:9;padding:8px;border:1px solid rgba(255,255,255,.2);border-radius:16px;
@@ -164,8 +162,9 @@ const off=document.createElement('canvas'),offCtx=off.getContext('2d',{willReadF
 const size=$('size'), nextBtn=$('nextBtn');
 let stream=null,facing='environment',ready=false,arStarted=false;
 let lastFrame=0,framesRunning=false,actorWidth=40,toastTimeout;
-let currentIndex=1;
-let maxIndex=6;            // now 6 videos available
+let currentIndex=1;   // currently playing video index
+let progress=1;       // user-facing progress (1..maxIndex)
+let maxIndex=6;       // 6 videos available
 const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
 function announce(t){const el=$('status');if(el)el.textContent=t;}
 function toast(t){$('toast').textContent=t;$('toast').classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('toast').classList.remove('show'),3600);}
@@ -194,9 +193,18 @@ async function startCamera(){
 $('cameraBtn').addEventListener('click',startCamera);
 $('switchCameraBtn').addEventListener('click',()=>{facing=facing==='environment'?'user':'environment';startCamera();});
 
-function prepareVideo(src){
- ready=false;actorVideo.pause();$('soundBtn').disabled=true;$('soundBtn').textContent='Enable Sound';
- actorVideo.src=src;actorVideo.load();announce('Loading character video…');
+/* Load a video by index. Video 1 and video maxIndex are looping;
+   2..maxIndex-1 play once and auto-return to video 1. */
+function prepareVideo(index){
+  ready=false;
+  actorVideo.pause();
+  currentIndex=index;
+  actorVideo.loop=(index===1||index===maxIndex);
+  $('soundBtn').disabled=true;
+  $('soundBtn').textContent='Enable Sound';
+  actorVideo.src=videoUrl(index);
+  actorVideo.load();
+  announce(`Loading video ${index}…`);
 }
 
 actorVideo.addEventListener('loadedmetadata',()=>{
@@ -218,24 +226,26 @@ actorVideo.addEventListener('error',()=>{
    toast(`zheng${currentIndex}.mp4 not found. Back to video 1.`);
    maxIndex=Math.max(1,currentIndex-1);
    currentIndex=1;
-   prepareVideo(videoUrl(1));
+   progress=1;
+   prepareVideo(1);
  }else{
    toast('Missing zheng1.mp4? Upload it next to index.html with the exact same filename.');
  }
 });
 
+/* Auto-return to video 1 after videos 2..maxIndex-1 finish.
+   1 and maxIndex have loop=true so they never trigger ended. */
 actorVideo.addEventListener('ended',async ()=>{
- if(currentIndex===1)return;
- try{await playVideo(1);}catch(e){}
+ if(currentIndex>=2 && currentIndex<maxIndex){
+   try{await playVideo(1);}catch(e){}
+ }
 });
 
 async function autoPlayActor(){
  if(!ready||!arStarted)return;
- // Unmuted: rely on user gesture from "Start AR"
  try{await actorVideo.play();$('soundBtn').textContent='Mute Sound';announce('AR started · video playing (sound on)');}
  catch(err){
    console.warn('Character autoplay failed',err);
-   // Fallback: mute and retry (some browsers still block audio)
    actorVideo.muted=true;
    try{await actorVideo.play();$('soundBtn').textContent='Enable Sound';announce('Playing · muted (browser blocked audio)');}
    catch(e){announce('Camera on; tap "Start AR" again to play');}
@@ -244,15 +254,12 @@ async function autoPlayActor(){
 
 function playVideo(index){
  return new Promise((resolve,reject)=>{
-   currentIndex=index;
-   prepareVideo(videoUrl(index));
+   prepareVideo(index);
    const onReady=async()=>{
      actorVideo.removeEventListener('loadedmetadata',onReady);
      actorVideo.removeEventListener('error',onErr);
-     try{
-       if(!actorVideo.muted){ /* keep current mute state */ }
-       await actorVideo.play();resolve();
-     }catch(e){reject(e);}
+     try{await actorVideo.play();resolve();}
+     catch(e){reject(e);}
    };
    const onErr=()=>{
      actorVideo.removeEventListener('loadedmetadata',onReady);
@@ -264,18 +271,23 @@ function playVideo(index){
  });
 }
 
+/* Next cycles progress: 1→2→3→4→5→6(loop), each 2..5 auto-returns to 1 after ending */
 nextBtn.addEventListener('click',async ()=>{
  if(!arStarted)return;
- let target=currentIndex+1;
- if(target>maxIndex)target=1;
+ if(progress>=maxIndex){
+   toast('Already showing the last video');
+   return;
+ }
+ progress++;
  try{
-   await playVideo(target);
-   announce(`Playing video ${target}`);
+   await playVideo(progress);
+   announce(`Playing video ${progress}`);
  }catch(err){
-   if(target>1){
-     maxIndex=Math.max(1,target-1);
-     const fallback=Math.max(1,Math.min(maxIndex,currentIndex));
-     try{await playVideo(fallback);announce(`Playing video ${fallback}`);}catch(e){}
+   // If the target video is missing, trim maxIndex and stay on current
+   if(progress>1){
+     maxIndex=Math.max(1,progress-1);
+     progress=Math.max(1,Math.min(maxIndex,progress-1));
+     try{await playVideo(progress);announce(`Playing video ${progress}`);}catch(e){}
    }
  }
 });
@@ -286,15 +298,35 @@ $('soundBtn').addEventListener('click',async()=>{
  else{actorVideo.muted=true;$('soundBtn').textContent='Enable Sound';announce('Playing · muted');}
 });
 
-function drawSingleFrame(){if(!ready||actorVideo.readyState<2)return;
+/* Enhanced chroma key: lower threshold, smoothstep falloff, strong spill suppression */
+function drawSingleFrame(){
+ if(!ready||actorVideo.readyState<2)return;
  try{
-  offCtx.clearRect(0,0,off.width,off.height);offCtx.drawImage(actorVideo,0,0,off.width,off.height);
+  offCtx.clearRect(0,0,off.width,off.height);
+  offCtx.drawImage(actorVideo,0,0,off.width,off.height);
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  const img=offCtx.getImageData(0,0,off.width,off.height),data=img.data;
+
+  const img=offCtx.getImageData(0,0,off.width,off.height);
+  const data=img.data;
+  const LOW=8;          // very low starting threshold (was 22)
+  const RANGE=67;       // HIGH - LOW => 75 - 8
+
   for(let i=0;i<data.length;i+=4){
-   const r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,b),diff=g-max;
-   if(g>65&&diff>22){const remove=clamp((diff-22)/52,0,1);data[i+3]=Math.round(data[i+3]*(1-remove));
-     if(remove<1)data[i+1]=Math.min(g,max*1.13+12);
+   const a=data[i+3];
+   if(a===0) continue;
+   const r=data[i],g=data[i+1],b=data[i+2];
+   const maxRB=r>b?r:b;
+   const greenDiff=g-maxRB;
+
+   if(greenDiff>LOW){
+     let t=(greenDiff-LOW)/RANGE;
+     if(t>1)t=1;
+     // smoothstep: soft falloff instead of hard line
+     const smooth=t*t*(3-2*t);
+     // alpha reduction
+     data[i+3]=Math.round(a*(1-smooth));
+     // spill suppression: pull green channel toward max(r,b)
+     data[i+1]=Math.round(g-(g-maxRB)*smooth);
    }
   }
   ctx.putImageData(img,0,0);
@@ -339,7 +371,7 @@ $('photoBtn').addEventListener('click',async()=>{
  }catch(err){console.error(err);toast('Photo composition failed. Check that the camera is working.');}
 });
 window.addEventListener('pagehide',()=>{if(stream)stream.getTracks().forEach(t=>t.stop());});
-prepareVideo(videoUrl(1));
+prepareVideo(1);
 })();
 </script>
 </body>
