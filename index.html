@@ -52,7 +52,7 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #hint{position:absolute;z-index:3;top:43%;width:100%;padding:0 18px;pointer-events:none;text-align:center;color:#e6eef7;text-shadow:0 2px 4px #000;font-size:14px;line-height:1.6}
 #hint.hide{display:none}
 
-/* ===== Toolbar (back to simple stacked layout) ===== */
+/* ===== Toolbar ===== */
 #toolbar{
   position:absolute;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));
   z-index:9;padding:8px;border:1px solid rgba(255,255,255,.2);border-radius:16px;
@@ -65,7 +65,6 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 .subactions{
   display:flex;gap:6px;align-items:center;margin-top:6px;min-height:24px;
 }
-/* Push Next to the far right of the subactions row */
 .subactions #nextBtn{margin-left:auto}
 
 #adjustPanel{
@@ -81,7 +80,6 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 .btn.primary{background:#b48249;border-color:#e9c18a;color:#101820}
 .btn.active{background:rgba(213,170,110,.22);border-color:var(--accent)}
 
-/* Small buttons — Next uses exactly the same size as .tiny */
 .tiny,
 #nextBtn{
   background:transparent;
@@ -133,7 +131,7 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
  </div>
  <div id="actor" aria-label="Zheng Guanying character position">
    <div id="actorCropper"><div class="cropInner">
-     <video id="actorVideo" playsinline webkit-playsinline muted loop preload="auto" aria-label="Zheng Guanying pre-recorded video"></video>
+     <video id="actorVideo" playsinline webkit-playsinline loop preload="auto" aria-label="Zheng Guanying pre-recorded video"></video>
      <canvas id="actorCanvas"></canvas>
      <div id="actorPlaceholder"><span class="silhouette">👤</span><strong>Character position preview</strong><small>Upload zheng.mp4 to the site root</small></div>
    </div></div>
@@ -167,7 +165,7 @@ const size=$('size'), nextBtn=$('nextBtn');
 let stream=null,facing='environment',ready=false,arStarted=false;
 let lastFrame=0,framesRunning=false,actorWidth=40,toastTimeout;
 let currentIndex=1;
-let maxIndex=3;
+let maxIndex=6;            // now 6 videos available
 const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
 function announce(t){const el=$('status');if(el)el.textContent=t;}
 function toast(t){$('toast').textContent=t;$('toast').classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('toast').classList.remove('show'),3600);}
@@ -197,7 +195,7 @@ $('cameraBtn').addEventListener('click',startCamera);
 $('switchCameraBtn').addEventListener('click',()=>{facing=facing==='environment'?'user':'environment';startCamera();});
 
 function prepareVideo(src){
- ready=false;actorVideo.pause();actorVideo.muted=true;$('soundBtn').disabled=true;$('soundBtn').textContent='Enable Sound';
+ ready=false;actorVideo.pause();$('soundBtn').disabled=true;$('soundBtn').textContent='Enable Sound';
  actorVideo.src=src;actorVideo.load();announce('Loading character video…');
 }
 
@@ -233,9 +231,15 @@ actorVideo.addEventListener('ended',async ()=>{
 
 async function autoPlayActor(){
  if(!ready||!arStarted)return;
- actorVideo.muted=true;
- try{await actorVideo.play();announce('AR started · video looping (muted)');}
- catch(err){console.warn('Character autoplay failed',err);announce('Camera on; tap "Start AR" again to play');}
+ // Unmuted: rely on user gesture from "Start AR"
+ try{await actorVideo.play();$('soundBtn').textContent='Mute Sound';announce('AR started · video playing (sound on)');}
+ catch(err){
+   console.warn('Character autoplay failed',err);
+   // Fallback: mute and retry (some browsers still block audio)
+   actorVideo.muted=true;
+   try{await actorVideo.play();$('soundBtn').textContent='Enable Sound';announce('Playing · muted (browser blocked audio)');}
+   catch(e){announce('Camera on; tap "Start AR" again to play');}
+ }
 }
 
 function playVideo(index){
@@ -245,8 +249,10 @@ function playVideo(index){
    const onReady=async()=>{
      actorVideo.removeEventListener('loadedmetadata',onReady);
      actorVideo.removeEventListener('error',onErr);
-     try{actorVideo.muted=true;await actorVideo.play();resolve();}
-     catch(e){reject(e);}
+     try{
+       if(!actorVideo.muted){ /* keep current mute state */ }
+       await actorVideo.play();resolve();
+     }catch(e){reject(e);}
    };
    const onErr=()=>{
      actorVideo.removeEventListener('loadedmetadata',onReady);
