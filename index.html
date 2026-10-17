@@ -12,8 +12,10 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #stage{position:fixed;inset:0;overflow:hidden;touch-action:pan-y;background:radial-gradient(ellipse at 50% 32%,#31465b 0%,#142738 40%,#07121d 100%)}
 #camera{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:transparent;transform:none}
 #stage:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(4,14,24,.52),transparent 26%,transparent 58%,rgba(4,14,24,.35) 87%,rgba(4,14,24,.62))}
-/* ===== Actor: fixed bottom-left ===== */
-#actor{position:absolute;left:10px;bottom:calc(150px + env(safe-area-inset-bottom));width:40vw;max-width:300px;min-width:90px;z-index:2;user-select:none;filter:drop-shadow(0 12px 12px rgba(0,0,0,.24));transform-origin:left bottom;transition:transform .25s ease,width .15s ease}
+/* ===== Actor: fixed bottom-left with bottom clipping ===== */
+#actor{position:absolute;left:10px;bottom:calc(150px + env(safe-area-inset-bottom));width:40vw;max-width:300px;min-width:90px;z-index:2;user-select:none;filter:drop-shadow(0 12px 12px rgba(0,0,0,.24));transform-origin:left bottom;transition:width .15s ease;overflow:visible}
+/* wrapper that crops the bottom part of the video */
+#actorClip{position:relative;overflow:hidden;width:100%}
 #actorCanvas{position:relative;z-index:1;display:none;vertical-align:bottom;width:100%;height:auto}
 #actorPlaceholder{aspect-ratio:9/16;min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1px dashed rgba(255,255,255,.35);border-radius:20px;background:linear-gradient(180deg,rgba(214,174,108,.07),rgba(8,23,35,.1));text-align:center;text-shadow:0 2px 8px black;pointer-events:none}
 #actorPlaceholder .silhouette{font-size:58px;line-height:1}#actorPlaceholder small{font-size:11px;color:var(--muted);line-height:1.6;padding:0 12px}
@@ -38,16 +40,19 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #toast{position:absolute;z-index:30;left:20px;right:20px;bottom:150px;padding:10px 14px;max-width:500px;margin:auto;text-align:center;background:rgba(5,20,34,.92);border:1px solid rgba(255,255,255,.22);border-radius:12px;font-size:12px;line-height:1.5;display:none}
 #toast.show{display:block}
 @media(min-width:700px){#toolbar{max-width:460px;margin:auto;left:0;right:0}.header{padding-left:30px}#hint{font-size:16px}}
-/* Landscape: align actor bottom with toolbar bottom + auto scale */
+
+/* ===== Portrait: crop bottom 3/16, scale 125% ===== */
+#actor{width:calc(40vw * 1.25);max-width:calc(300px * 1.25)}
+#actorClip{height:calc(100% * 13 / 16)}   /* show top 13/16, crop bottom 3/16 */
+
+/* ===== Landscape: crop bottom 3/8, scale 150% ===== */
 @media (orientation: landscape){
   #actor{
-    bottom: calc(10px + env(safe-area-inset-bottom));  /* 與工具列底部平齊 */
-    transform: scale(.6);
-    transform-origin: left bottom;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    width: calc(40vw * 1.5);
+    max-width: calc(300px * 1.5);
   }
-}
-@media (orientation: landscape) and (max-height:420px){
-  #actor{ transform: scale(.45); }
+  #actorClip{height:calc(100% * 5 / 8)}   /* show top 5/8, crop bottom 3/8 */
 }
 </style>
 </head>
@@ -55,7 +60,13 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 <main id="stage" aria-label="Camera character tour view">
  <video id="camera" autoplay muted playsinline aria-label="Mobile camera preview"></video>
  <div class="header"><div class="kicker">Mandarin's House • AI Heritage</div><h1>Zheng Guanying · Encounter Across Time</h1></div>
- <div id="actor" aria-label="Zheng Guanying character position"><video id="actorVideo" playsinline webkit-playsinline muted loop preload="auto" aria-label="Zheng Guanying pre-recorded video"></video><canvas id="actorCanvas"></canvas><div id="actorPlaceholder"><span class="silhouette">👤</span><strong>Character position preview</strong><small>Upload zheng.mp4 to the site root</small></div></div>
+ <div id="actor" aria-label="Zheng Guanying character position">
+   <div id="actorClip">
+     <video id="actorVideo" playsinline webkit-playsinline muted loop preload="auto" aria-label="Zheng Guanying pre-recorded video"></video>
+     <canvas id="actorCanvas"></canvas>
+     <div id="actorPlaceholder"><span class="silhouette">👤</span><strong>Character position preview</strong><small>Upload zheng.mp4 to the site root</small></div>
+   </div>
+ </div>
  <div id="hint">Tap "Start AR" to open the camera.<br>zheng.mp4 plays automatically on mute, looping.</div>
  <div id="toast" role="status"></div>
  <div id="toolbar">
@@ -87,7 +98,7 @@ const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
 function announce(t){const el=$('status');if(el)el.textContent=t;}
 function toast(t){$('toast').textContent=t;$('toast').classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('toast').classList.remove('show'),3600);}
 const remoteVideoUrl=new URL('./zheng.mp4',document.baseURI);
-function applySize(){actor.style.width=actorWidth+'vw';size.value=actorWidth;}
+function applySize(){actor.style.setProperty('--w',actorWidth+'vw');size.value=actorWidth;}
 function saveSize(){try{localStorage.setItem('zg_ar_size',actorWidth);}catch(e){}}
 try{const s=+localStorage.getItem('zg_ar_size');if(Number.isFinite(s))actorWidth=clamp(s,15,80);}catch(e){}
 applySize();
@@ -172,7 +183,7 @@ $('photoBtn').addEventListener('click',async()=>{
   const vw=camera.videoWidth,vh=camera.videoHeight,target=out.width/out.height,source=vw/vh;
   if(source>target){const sw=vh*target;g.drawImage(camera,(vw-sw)/2,0,sw,vh,0,0,out.width,out.height);}
   else{const sh=vw/target;g.drawImage(camera,0,(vh-sh)/2,vw,sh,0,0,out.width,out.height);}
-  if(ready){const a=actor.getBoundingClientRect();g.drawImage(canvas,(a.left-r.left)*ratio,(a.top-r.top)*ratio,a.width*ratio,a.height*ratio);}
+  if(ready){const a=canvas.getBoundingClientRect();g.drawImage(canvas,(a.left-r.left)*ratio,(a.top-r.top)*ratio,a.width*ratio,a.height*ratio);}
   g.fillStyle='rgba(0,0,0,.46)';g.fillRect(0,out.height-32*ratio,out.width,32*ratio);
   g.fillStyle='#ffffff';g.font=(12*ratio)+'px sans-serif';g.textAlign='center';g.fillText('Zheng Guanying · AI-Restored Historical Figure',out.width/2,out.height-12*ratio);
   out.toBlob(async blob=>{
