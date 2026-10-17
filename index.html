@@ -35,6 +35,17 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 #actorCropper .cropInner{margin-bottom:-25%}
 
 #actorCanvas{position:relative;z-index:1;display:none;vertical-align:bottom;width:100%;height:auto}
+/* Snapshot overlay: shows last frame during video switch to avoid blank frame */
+#actorSnapshot{
+  position:absolute;
+  left:0;
+  bottom:0;
+  width:100%;
+  height:auto;
+  z-index:2;
+  display:none;
+  pointer-events:none;
+}
 #actorPlaceholder{
   aspect-ratio:9/16;min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
   border:1px dashed rgba(255,255,255,.35);border-radius:20px;
@@ -78,7 +89,6 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 .btn.primary{background:#b48249;border-color:#e9c18a;color:#101820}
 .btn.active{background:rgba(213,170,110,.22);border-color:var(--accent)}
 
-/* small buttons: Prev and Next share the exact same size */
 .tiny,
 #prevBtn,
 #nextBtn{
@@ -135,6 +145,7 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
    <div id="actorCropper"><div class="cropInner">
      <video id="actorVideo" playsinline webkit-playsinline preload="auto" aria-label="Zheng Guanying pre-recorded video"></video>
      <canvas id="actorCanvas"></canvas>
+     <canvas id="actorSnapshot" aria-hidden="true"></canvas>
      <div id="actorPlaceholder"><span class="silhouette">👤</span><strong>Character position preview</strong><small>Upload zheng.mp4 to the site root</small></div>
    </div></div>
  </div>
@@ -163,13 +174,15 @@ button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.
 const $=s=>document.getElementById(s);
 const stage=$('stage'), camera=$('camera'), actor=$('actor'),actorVideo=$('actorVideo');
 const canvas=$('actorCanvas'), ctx=canvas.getContext('2d',{willReadFrequently:true});
+const snapshot=$('actorSnapshot'), snapCtx=snapshot.getContext('2d');
 const off=document.createElement('canvas'),offCtx=off.getContext('2d',{willReadFrequently:true});
 const size=$('size'), nextBtn=$('nextBtn'), prevBtn=$('prevBtn');
 let stream=null,facing='environment',ready=false,arStarted=false;
 let lastFrame=0,framesRunning=false,actorWidth=40,toastTimeout;
-let currentIndex=1;   // currently playing video index
-let progress=1;       // demo progress (user-facing); monotonically increases via Next
+let currentIndex=1;
+let progress=1;
 let maxIndex=6;
+let autoPlayPending=false;
 const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
 function announce(t){const el=$('status');if(el)el.textContent=t;}
 function toast(t){$('toast').textContent=t;$('toast').classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('toast').classList.remove('show'),3600);}
@@ -179,14 +192,12 @@ function saveSize(){try{localStorage.setItem('zg_ar_size',actorWidth);}catch(e){
 try{const s=+localStorage.getItem('zg_ar_size');if(Number.isFinite(s))actorWidth=clamp(s,15,80);}catch(e){}
 applySize();
 
-/* Update sound button based on actual muted state */
 function syncSoundBtn(){
   if(!ready){ $('soundBtn').disabled=true; return; }
   $('soundBtn').disabled=false;
   $('soundBtn').textContent = actorVideo.muted ? 'Enable Sound' : 'Mute Sound';
 }
 
-/* Play the actor video unmuted; on browser rejection fall back to muted. */
 async function playUnmuted(){
   try{
     actorVideo.muted=false;
@@ -205,9 +216,9 @@ async function startCamera(){
   if(!navigator.mediaDevices?.getUserMedia){announce('Camera requires an HTTPS or localhost environment');toast('Please open this page via HTTPS, or test on localhost.');return;}
   if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
 
-  // Immediately start the character video while the user gesture is still valid
+  // Start the actor video inside the user gesture for unmuted autoplay
   if(ready && actorVideo.paused){
-    await playUnmuted();
+    playUnmuted();
   }
 
   try{
@@ -222,17 +233,30 @@ async function startCamera(){
     prevBtn.disabled=false;
     announce('Camera on');
 
-    // If the video wasn't playing yet (e.g. loaded late), try again
     if(ready && actorVideo.paused) await playUnmuted();
+    else if(!ready) autoPlayPending=true;   // wait for loadeddata to auto-play
   }catch(err){console.error(err);announce('Camera failed to start: '+err.name);toast('Cannot open camera: please allow camera access and use HTTPS.');}
 }
 $('cameraBtn').addEventListener('click',startCamera);
 $('switchCameraBtn').addEventListener('click',()=>{facing=facing==='environment'?'user':'environment';startCamera();});
 
-/* Prepare a video. We do NOT use the HTML loop attribute anymore; loop is handled
-   explicitly in the "ended" handler below, which is far more reliable. */
+/* ---- Video switching with snapshot overlay (no blank frame) ---- */
+
+function takeSnapshot(){
+  // Copy the currently visible canvas into the snapshot overlay
+  if(canvas.width>0 && canvas.height>0){
+    snapshot.width=canvas.width;
+    snapshot.height=canvas.height;
+    snapCtx.clearRect(0,0,snapshot.width,snapshot.height);
+    snapCtx.drawImage(canvas,0,0);
+    snapshot.style.display='block';
+  }
+}
+
 function prepareVideo(index){
+  takeSnapshot();          // freeze the last visible frame
   ready=false;
+  autoPlayPending=false;
   actorVideo.pause();
   currentIndex=index;
   actorVideo.loop=false;
@@ -244,17 +268,34 @@ function prepareVideo(index){
 }
 
 actorVideo.addEventListener('loadedmetadata',()=>{
- if(!actorVideo.videoWidth||!actorVideo.videoHeight){toast('The video has no readable frames.');return;}
- const w=Math.min(actorVideo.videoWidth,420);
- const h=Math.max(1,Math.round(w*actorVideo.videoHeight/actorVideo.videoWidth));
- off.width=canvas.width=w;off.height=canvas.height=h;
- actor.style.aspectRatio=actorVideo.videoWidth+'/'+actorVideo.videoHeight;
- canvas.style.display='block';$('actorPlaceholder').style.display='none';
- ready=true;syncSoundBtn();nextBtn.disabled=!arStarted;
- if(arStarted){autoPlayActor();announce(`Video ${currentIndex} loaded · playing`);}
- else{announce(`Video ${currentIndex} loaded. Tap "Start AR" to begin.`);}
- if(!framesRunning){framesRunning=true;requestAnimationFrame(drawActor);}
- drawSingleFrame();
+  // Only read dimensions here; do NOT mark ready yet
+  if(!actorVideo.videoWidth||!actorVideo.videoHeight){toast('The video has no readable frames.');return;}
+  const w=Math.min(actorVideo.videoWidth,420);
+  const h=Math.max(1,Math.round(w*actorVideo.videoHeight/actorVideo.videoWidth));
+  // Resizing canvas will clear it, but the snapshot covers it visually
+  off.width=canvas.width=w;
+  off.height=canvas.height=h;
+  actor.style.aspectRatio=actorVideo.videoWidth+'/'+actorVideo.videoHeight;
+  canvas.style.display='block';
+  $('actorPlaceholder').style.display='none';
+});
+
+actorVideo.addEventListener('loadeddata',()=>{
+  // First frame is now available; draw it before hiding the snapshot
+  ready=true;
+  syncSoundBtn();
+  nextBtn.disabled=!arStarted;
+  if(!framesRunning){framesRunning=true;requestAnimationFrame(drawActor);}
+  drawSingleFrame();
+  // Hide snapshot on the next frame to guarantee the new frame is visible
+  requestAnimationFrame(()=>{snapshot.style.display='none';});
+
+  if(autoPlayPending && arStarted){
+    autoPlayPending=false;
+    autoPlayActor();
+  }
+  if(arStarted) announce(`Video ${currentIndex} loaded · playing`);
+  else announce(`Video ${currentIndex} loaded. Tap "Start AR" to begin.`);
 });
 
 actorVideo.addEventListener('error',()=>{
@@ -269,16 +310,17 @@ actorVideo.addEventListener('error',()=>{
  }
 });
 
-/* Explicit loop control in ended handler (loop attribute is unreliable across browsers) */
+/* Ended handler:
+   - video 1: loop manually
+   - video maxIndex: hold the final frame (do nothing)
+   - videos 2..maxIndex-1: auto-return to video 1 */
 actorVideo.addEventListener('ended', async ()=>{
-  if(currentIndex === 1 || currentIndex === maxIndex){
-    // Loop videos 1 and maxIndex manually
-    try{
-      actorVideo.currentTime=0;
-      await actorVideo.play();
-    }catch(e){ console.warn('Loop restart failed', e); }
+  if(currentIndex===1){
+    try{ actorVideo.currentTime=0; await actorVideo.play(); }catch(e){console.warn(e);}
+  } else if(currentIndex===maxIndex){
+    announce(`Video ${maxIndex} finished — holding final frame`);
+    // Stay on the last frame; drawActor keeps re-drawing it each tick
   } else {
-    // Videos 2..(maxIndex-1): return to video 1 automatically
     try{ await playVideo(1); announce('Auto-returned to video 1'); }
     catch(e){ console.warn('Auto-return to 1 failed', e); }
   }
@@ -286,7 +328,7 @@ actorVideo.addEventListener('ended', async ()=>{
 
 async function autoPlayActor(){
   if(!ready||!arStarted)return;
-  const ok = await playUnmuted();
+  const ok=await playUnmuted();
   announce(ok ? 'AR started · video playing' : 'Camera on; tap "Enable Sound" or retry Start AR');
 }
 
@@ -294,29 +336,24 @@ function playVideo(index){
   return new Promise((resolve,reject)=>{
     prepareVideo(index);
     const onReady=async()=>{
-      actorVideo.removeEventListener('loadedmetadata',onReady);
+      actorVideo.removeEventListener('loadeddata',onReady);
       actorVideo.removeEventListener('error',onErr);
-      const ok = await playUnmuted();
+      const ok=await playUnmuted();
       ok ? resolve() : reject(new Error('play rejected'));
     };
     const onErr=()=>{
-      actorVideo.removeEventListener('loadedmetadata',onReady);
+      actorVideo.removeEventListener('loadeddata',onReady);
       actorVideo.removeEventListener('error',onErr);
       reject(new Error('load error'));
     };
-    actorVideo.addEventListener('loadedmetadata',onReady);
+    actorVideo.addEventListener('loadeddata',onReady);
     actorVideo.addEventListener('error',onErr);
   });
 }
 
-/* Next: advance progress (1→2→3→4→5→6), each target plays and, if not the last,
-   automatically returns to video 1 after it ends. */
 nextBtn.addEventListener('click', async ()=>{
   if(!arStarted) return;
-  if(progress>=maxIndex){
-    toast('Already at the last video');
-    return;
-  }
+  if(progress>=maxIndex){ toast('Already at the last video'); return; }
   progress++;
   try{
     await playVideo(progress);
@@ -330,13 +367,9 @@ nextBtn.addEventListener('click', async ()=>{
   }
 });
 
-/* Prev: rewind progress and play that video */
 prevBtn.addEventListener('click', async ()=>{
   if(!arStarted) return;
-  if(progress<=1){
-    toast('Already at the first video');
-    return;
-  }
+  if(progress<=1){ toast('Already at the first video'); return; }
   progress--;
   try{
     await playVideo(progress);
@@ -358,7 +391,6 @@ $('soundBtn').addEventListener('click',async()=>{
   }
 });
 
-/* Enhanced chroma key: low threshold + smoothstep + strong spill suppression */
 function drawSingleFrame(){
  if(!ready||actorVideo.readyState<2)return;
  try{
